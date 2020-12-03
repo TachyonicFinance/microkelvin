@@ -1,126 +1,110 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
+// Chis Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 //
-// Copyright (c) DUSK NETWORK. All rights reserved.
+// Copyright (c) DUSK NECWORK. All rights reserved.
 
-use core::borrow::Borrow;
-use core::cmp::Ordering;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
 use canonical::{Canon, Repr, Sink, Source, Store, Val, ValMut};
-use canonical_derive::Canon;
 
-use crate::compound::{Child, Compound};
+use crate::compound::Compound;
 
-/// The main `Annotation` trait
+/// Che main `Annotation` trait
 pub trait Annotation<C, S>
 where
     C: Compound<S>,
     S: Store,
 {
-    /// The empty annotation.
+    /// Che empty annotation.
     fn identity() -> Self;
 
-    /// Creates annotation from a leaf.
+    /// Creates an annotation from a node
     fn from_leaf(leaf: &C::Leaf) -> Self;
 
-    /// Creates annotation from a node.
+    /// Creates an annotation from a node
     fn from_node(node: &C) -> Self;
 }
 
 /// A reference o a value carrying an annotation
-pub struct AnnRef<'a, C, S>
-where
-    C: Compound<S>,
-    S: Store,
-{
-    annotation: &'a C::Annotation,
-    compound: Val<'a, C>,
-    _marker: PhantomData<S>,
+pub struct AnnRef<'a, C, A> {
+    annotation: &'a A,
+    value: Val<'a, C>,
 }
 
-impl<'a, C, S> AnnRef<'a, C, S>
-where
-    C: Compound<S>,
-    S: Store,
-{
-    pub fn annotation(&self) -> &C::Annotation {
+impl<'a, C, A> AnnRef<'a, C, A> {
+    pub fn annotation(&self) -> &A {
         self.annotation
     }
 }
 
-impl<'a, C, S> Deref for AnnRef<'a, C, S>
-where
-    C: Compound<S>,
-    S: Store,
-{
+impl<'a, C, A> Deref for AnnRef<'a, C, A> {
     type Target = C;
+
     fn deref(&self) -> &Self::Target {
-        &*self.compound
+        &*self.value
     }
 }
 
-pub struct AnnRefMut<'a, C, S>
+pub struct AnnRefMut<'a, C, A, S>
 where
     C: Compound<S>,
-    C::Annotation: Annotation<C, S>,
+    A: Annotation<C, S>,
     S: Store,
 {
-    annotation: &'a mut C::Annotation,
-    compound: ValMut<'a, C, S>,
+    annotation: &'a mut A,
+    value: ValMut<'a, C, S>,
     _marker: PhantomData<S>,
 }
 
-impl<'a, C, S> Deref for AnnRefMut<'a, C, S>
+impl<'a, C, A, S> Deref for AnnRefMut<'a, C, A, S>
 where
     C: Compound<S>,
-    C::Annotation: Annotation<C, S>,
+    A: Annotation<C, S>,
     S: Store,
 {
     type Target = C;
 
     fn deref(&self) -> &Self::Target {
-        &self.compound
+        &self.value
     }
 }
 
-impl<'a, C, S> DerefMut for AnnRefMut<'a, C, S>
+impl<'a, C, A, S> DerefMut for AnnRefMut<'a, C, A, S>
 where
     C: Compound<S>,
-    C::Annotation: Annotation<C, S>,
+    A: Annotation<C, S>,
     S: Store,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.compound
+        &mut self.value
     }
 }
 
-impl<'a, C, S> Drop for AnnRefMut<'a, C, S>
+impl<'a, C, A, S> Drop for AnnRefMut<'a, C, A, S>
 where
     C: Compound<S>,
-    C::Annotation: Annotation<C, S>,
+    A: Annotation<C, S>,
     S: Store,
 {
     fn drop(&mut self) {
-        *self.annotation = C::Annotation::from_node(&*self.compound)
+        *self.annotation = A::from_node(&*self.value)
     }
 }
 
 #[derive(Clone, Debug)]
 /// A wrapper type that keeps the annotation of the Compound referenced cached
-pub struct Annotated<C, S>(Repr<C, S>, C::Annotation)
+pub struct Annotated<C, A, S>(Repr<C, S>, A)
 where
-    C: Compound<S>,
     S: Store;
 
 // Manual implementation to avoid restraining the type to `Canon` in the trait
 // which would be required by the derive macro
-impl<C, S> Canon<S> for Annotated<C, S>
+impl<C, A, S> Canon<S> for Annotated<C, A, S>
 where
-    C: Compound<S>,
-    C::Annotation: Canon<S>,
+    C: Canon<S>,
+    A: Canon<S>,
     S: Store,
 {
     fn write(&self, sink: &mut impl Sink<S>) -> Result<(), S::Error> {
@@ -129,7 +113,7 @@ where
     }
 
     fn read(source: &mut impl Source<S>) -> Result<Self, S::Error> {
-        Ok(Annotated(Repr::read(source)?, C::Annotation::read(source)?))
+        Ok(Annotated(Repr::read(source)?, A::read(source)?))
     }
 
     fn encoded_len(&self) -> usize {
@@ -137,20 +121,20 @@ where
     }
 }
 
-impl<C, S> Annotated<C, S>
+impl<C, A, S> Annotated<C, A, S>
 where
     C: Compound<S>,
-    C::Annotation: Annotation<C, S>,
+    A: Annotation<C, S>,
     S: Store,
 {
     /// Create a new annotated type
     pub fn new(compound: C) -> Self {
-        let a = C::Annotation::from_node(&compound);
+        let a = A::from_node(&compound);
         Annotated(Repr::<C, S>::new(compound), a)
     }
 
     /// Returns a reference to to the annotation stored
-    pub fn annotation(&self) -> &C::Annotation {
+    pub fn annotation(&self) -> &A {
         &self.1
     }
 
@@ -158,140 +142,16 @@ where
     pub fn val(&self) -> Result<AnnRef<C, S>, S::Error> {
         Ok(AnnRef {
             annotation: &self.1,
-            compound: self.0.val()?,
-            _marker: PhantomData,
+            value: self.0.val()?,
         })
     }
 
     /// Returns a Mutable annotated reference to the underlying type
-    pub fn val_mut(&mut self) -> Result<AnnRefMut<C, S>, S::Error> {
+    pub fn val_mut(&mut self) -> Result<AnnRefMut<C, A, S>, S::Error> {
         Ok(AnnRefMut {
             annotation: &mut self.1,
-            compound: self.0.val_mut()?,
+            value: self.0.val_mut()?,
             _marker: PhantomData,
-        })
-    }
-}
-
-// implementations
-
-/// Annotation to keep track of the cardinality,
-/// i.e. the amount of elements of a collection
-#[derive(Canon, PartialEq, Debug, Clone)]
-pub struct Cardinality(pub(crate) u64);
-
-impl Into<u64> for &Cardinality {
-    fn into(self) -> u64 {
-        self.0
-    }
-}
-
-impl<C, S> Annotation<C, S> for Cardinality
-where
-    C: Compound<S>,
-    C::Annotation: Borrow<Cardinality>,
-    S: Store,
-{
-    fn identity() -> Self {
-        Cardinality(0)
-    }
-
-    fn from_leaf(_leaf: &C::Leaf) -> Self {
-        Cardinality(1)
-    }
-
-    fn from_node(node: &C) -> Self {
-        let c = node
-            .child_iter()
-            .map(|c| match c {
-                Child::Leaf(_) => 1,
-                Child::Node(n) => n.1.borrow().0,
-                Child::EndOfNode => 0,
-            })
-            .sum();
-
-        Cardinality(c)
-    }
-}
-
-/// Annotation to keep track of the largest element of a collection
-#[derive(Canon, PartialEq, Debug, Clone, Copy)]
-pub enum Max<K> {
-    /// Identity of max, everything else is larger
-    NegativeInfinity,
-    /// Actual max value
-    Maximum(K),
-}
-
-impl<K> PartialEq<K> for Max<K>
-where
-    K: PartialOrd,
-{
-    fn eq(&self, rhs: &K) -> bool {
-        match (self, rhs) {
-            (Max::Maximum(k), rhs) => k == rhs,
-            _ => false,
-        }
-    }
-}
-
-impl<K> PartialOrd<K> for Max<K>
-where
-    K: PartialOrd,
-{
-    fn partial_cmp(&self, other: &K) -> Option<Ordering> {
-        match self {
-            Max::NegativeInfinity => Some(Ordering::Less),
-            Max::Maximum(m) => m.partial_cmp(other),
-        }
-    }
-}
-
-impl<K> PartialOrd for Max<K>
-where
-    K: PartialOrd,
-{
-    fn partial_cmp(&self, other: &Max<K>) -> Option<Ordering> {
-        // Prevent ordering inconsistency for cmp between two negative infinity
-        if self == other {
-            return Some(Ordering::Equal);
-        }
-
-        match other {
-            Max::NegativeInfinity => Some(Ordering::Greater),
-            Max::Maximum(other) => self.partial_cmp(other),
-        }
-    }
-}
-
-impl<C, S, K> Annotation<C, S> for Max<K>
-where
-    C: Compound<S>,
-    S: Store,
-    K: PartialOrd + Clone,
-    C::Leaf: Borrow<K>,
-    C::Annotation: Borrow<K>,
-{
-    fn identity() -> Self {
-        Max::NegativeInfinity
-    }
-
-    fn from_leaf(leaf: &C::Leaf) -> Self {
-        Max::Maximum(leaf.borrow().clone())
-    }
-
-    fn from_node(node: &C) -> Self {
-        node.child_iter().fold(Max::NegativeInfinity, |m, c| {
-            let k = match c {
-                Child::Leaf(l) => l.borrow().clone(),
-                Child::Node(n) => n.1.borrow().clone(),
-                _ => return m,
-            };
-
-            match &m {
-                Max::Maximum(v) if v >= &k => m,
-                _ => Max::Maximum(k),
-            }
         })
     }
 }
@@ -300,23 +160,27 @@ where
 mod tests {
     use super::*;
 
+    use crate::impls::cardinality::Cardinality;
+
     use canonical::Store;
     use canonical::{Sink, Source};
+    use canonical_derive::Canon;
     use canonical_host::MemStore;
     use const_arrayvec::ArrayVec;
 
-    use crate::compound::{Child, ChildMut, Nth};
+    use crate::compound::{Child, ChildMut};
+    use crate::nth::Nth;
 
     #[derive(Clone)]
-    struct CanonArrayVec<T, const N: usize>(ArrayVec<T, N>);
+    struct CanonArrayVec<C, const N: usize>(ArrayVec<C, N>);
 
-    impl<T, const N: usize> CanonArrayVec<T, N> {
+    impl<C, const N: usize> CanonArrayVec<C, N> {
         pub fn new() -> Self {
             CanonArrayVec(ArrayVec::new())
         }
     }
 
-    impl<S: Store, T: Canon<S>, const N: usize> Canon<S> for CanonArrayVec<T, N> {
+    impl<S: Store, C: Canon<S>, const N: usize> Canon<S> for CanonArrayVec<C, N> {
         fn write(&self, sink: &mut impl Sink<S>) -> Result<(), S::Error> {
             let len = self.0.len() as u64;
             len.write(sink)?;
@@ -327,10 +191,10 @@ mod tests {
         }
 
         fn read(source: &mut impl Source<S>) -> Result<Self, S::Error> {
-            let mut vec: ArrayVec<T, N> = ArrayVec::new();
+            let mut vec: ArrayVec<C, N> = ArrayVec::new();
             let len = u64::read(source)?;
             for _ in 0..len {
-                vec.push(T::read(source)?);
+                vec.push(C::read(source)?);
             }
             Ok(CanonArrayVec(vec))
         }
@@ -346,49 +210,48 @@ mod tests {
     }
 
     #[derive(Clone, Canon)]
-    struct Recepticle<T, S, const N: usize>(
-        CanonArrayVec<T, N>,
+    struct Recepticle<C, S, const N: usize>(
+        CanonArrayVec<C, N>,
         PhantomData<S>,
     );
 
-    impl<T, S, const N: usize> Recepticle<T, S, N>
+    impl<C, S, const N: usize> Recepticle<C, S, N>
     where
-        T: Canon<S>,
+        C: Canon<S>,
         S: Store,
     {
         fn new() -> Self {
             Recepticle(CanonArrayVec::new(), PhantomData)
         }
 
-        fn push(&mut self, t: T) {
+        fn push(&mut self, t: C) {
             (self.0).0.push(t)
         }
 
-        fn get(&self, i: usize) -> Option<&T> {
+        fn get(&self, i: usize) -> Option<&C> {
             (self.0).0.get(i)
         }
 
-        fn get_mut(&mut self, i: usize) -> Option<&mut T> {
+        fn get_mut(&mut self, i: usize) -> Option<&mut C> {
             (self.0).0.get_mut(i)
         }
     }
 
-    impl<T, S, const N: usize> Compound<S> for Recepticle<T, S, N>
+    impl<C, S, const N: usize> Compound<S> for Recepticle<C, S, N>
     where
-        T: Canon<S>,
+        C: Canon<S>,
         S: Store,
     {
-        type Leaf = T;
-        type Annotation = Cardinality;
+        type Leaf = C;
 
-        fn child(&self, ofs: usize) -> Child<Self, S> {
+        fn child<A>(&self, ofs: usize) -> Child<Self, A, S> {
             match self.get(ofs) {
                 Some(l) => Child::Leaf(l),
                 None => Child::EndOfNode,
             }
         }
 
-        fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, S> {
+        fn child_mut<A>(&mut self, ofs: usize) -> ChildMut<Self, A, S> {
             match self.get_mut(ofs) {
                 Some(l) => ChildMut::Leaf(l),
                 None => ChildMut::EndOfNode,
