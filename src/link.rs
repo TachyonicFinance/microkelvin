@@ -5,7 +5,7 @@ use core::ops::{Deref, DerefMut};
 
 use canonical::{Canon, CanonError, Id};
 
-use crate::Compound;
+use crate::{Annotation, Compound};
 
 #[cfg(feature = "persistance")]
 use crate::Persisted;
@@ -30,7 +30,7 @@ impl<C, A> Default for LinkInner<C, A> {
 impl<C, A> Canon for Link<C, A>
 where
     C: Compound<A> + Canon,
-    A: Canon,
+    A: Annotation<C::Leaf> + Canon,
 {
     fn encode(&self, sink: &mut canonical::Sink) {
         self.id().encode(sink);
@@ -61,6 +61,7 @@ impl<C, A> From<LinkInner<C, A>> for Link<C, A> {
 impl<C, A> Link<C, A>
 where
     C: Compound<A>,
+    A: Annotation<C::Leaf>,
 {
     /// Create a new annotated type
     pub fn new(compound: C) -> Self {
@@ -74,7 +75,7 @@ where
             LinkInner::Ca(_, _)
             | LinkInner::Ica(_, _, _)
             | LinkInner::Ia(_, _) => return LinkAnnotation(borrow),
-            LinkInner::C(ref c) => c.annotation(),
+            LinkInner::C(ref c) => A::combine(c.annotations()),
             LinkInner::Placeholder => unreachable!(),
         };
         if let LinkInner::C(c) = mem::take(&mut *borrow) {
@@ -172,7 +173,10 @@ impl<'a, C, A> Deref for LinkCompound<'a, C, A> {
     }
 }
 
-impl<'a, C, A> Deref for LinkCompoundMut<'a, C, A> {
+impl<'a, C, A> Deref for LinkCompoundMut<'a, C, A>
+where
+    C: Clone,
+{
     type Target = C;
 
     fn deref(&self) -> &Self::Target {

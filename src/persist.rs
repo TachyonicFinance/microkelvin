@@ -196,6 +196,8 @@ impl<'p> Encoder<'p> {
         let node = &*dep.val()?;
         let anno = dep.annotation();
 
+	let sink = Sink::new()
+	
         let persisted = self.store.persist(node)?;
 
         self.bytes.push(TAG_LINK);

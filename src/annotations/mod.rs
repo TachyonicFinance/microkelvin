@@ -4,9 +4,10 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use core::borrow::Borrow;
 use core::ops::Deref;
 
-use crate::{Compound, LinkAnnotation};
+use crate::{AnnoIter, Compound, LinkAnnotation};
 
 mod cardinality;
 mod max_key;
@@ -17,18 +18,18 @@ pub use cardinality::{Cardinality, Nth};
 pub use max_key::{GetMaxKey, Keyed, MaxKey};
 
 /// The trait defining an annotation type over a leaf
-pub trait Annotation<Leaf>: Default + Clone {
+pub trait Annotation<Leaf>: Default + Clone + Combine<Self> {
     /// Creates an annotation from the leaf type
     fn from_leaf(leaf: &Leaf) -> Self;
 }
 
 /// Trait for defining how to combine Annotations
-pub trait Combine<C, A>: Annotation<C::Leaf>
-where
-    C: Compound<A>,
-{
+pub trait Combine<A> {
     /// Combines multiple annotations
-    fn combine(node: &C) -> Self;
+    fn combine<C>(iter: AnnoIter<C, A>) -> Self
+    where
+        C: Compound<A>,
+        A: Annotation<C::Leaf> + Borrow<Self>;
 }
 
 #[derive(Debug)]

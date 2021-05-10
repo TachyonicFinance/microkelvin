@@ -15,7 +15,7 @@ use canonical_derive::Canon;
 use crate::annotations::{Annotation, Combine};
 use crate::branch::Branch;
 use crate::branch_mut::BranchMut;
-use crate::compound::{Child, Compound, MutableLeaves};
+use crate::compound::{AnnoIter, Child, Compound, MutableLeaves};
 use crate::walk::{Step, Walk, Walker};
 
 /// The maximum value of a collection
@@ -81,26 +81,27 @@ where
 impl<K, L> Annotation<L> for MaxKey<K>
 where
     L: Keyed<K>,
-    K: Clone,
+    K: Clone + Ord,
 {
     fn from_leaf(leaf: &L) -> Self {
         MaxKey::Maximum(leaf.key().clone())
     }
 }
 
-impl<C, A, K> Combine<C, A> for MaxKey<K>
+impl<K, A> Combine<A> for MaxKey<K>
 where
-    C: Compound<A>,
-    C::Leaf: Keyed<K>,
-    A: Combine<C, A> + Borrow<Self>,
     K: Ord + Clone,
+    A: Borrow<Self>,
 {
-    fn combine(node: &C) -> Self {
+    fn combine<C>(iter: AnnoIter<C, A>) -> Self
+    where
+        C: Compound<A>,
+        A: Annotation<C::Leaf>,
+    {
         let mut max = MaxKey::NegativeInfinity;
 
-        for child in node.children() {
-            let ann = &*child.annotation();
-            let m = ann.borrow();
+        for ann in iter {
+            let m = (*ann).borrow();
 
             if *m > max {
                 max = m.clone()
@@ -123,7 +124,7 @@ impl<C, A, K> Walker<C, A> for FindMaxKey<K>
 where
     C: Compound<A>,
     C::Leaf: Keyed<K>,
-    A: Borrow<MaxKey<K>>,
+    A: Annotation<C::Leaf> + Borrow<MaxKey<K>>,
     K: Ord + Clone + core::fmt::Debug,
 {
     fn walk(&mut self, walk: Walk<C, A>) -> Step {
@@ -162,7 +163,7 @@ pub trait GetMaxKey<'a, A, K>
 where
     Self: Compound<A>,
     Self::Leaf: Keyed<K>,
-    A: Borrow<MaxKey<K>> + Clone,
+    A: Annotation<Self::Leaf> + Borrow<MaxKey<K>> + Clone,
     K: Ord,
 {
     /// Construct a `Branch` pointing to the element with the largest key
@@ -173,7 +174,6 @@ where
         &'a mut self,
     ) -> Result<Option<BranchMut<'a, Self, A>>, CanonError>
     where
-        A: Combine<Self, A>,
         Self: MutableLeaves;
 }
 
@@ -193,7 +193,6 @@ where
         &'a mut self,
     ) -> Result<Option<BranchMut<'a, Self, A>>, CanonError>
     where
-        A: Combine<Self, A>,
         C: MutableLeaves,
     {
         // Return the first mutable branch that satisfies the walk

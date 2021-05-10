@@ -14,7 +14,7 @@ use canonical_derive::Canon;
 use crate::annotations::{Annotation, Combine};
 use crate::branch::Branch;
 use crate::branch_mut::BranchMut;
-use crate::compound::{Child, Compound, MutableLeaves};
+use crate::compound::{AnnoIter, Child, Compound, MutableLeaves};
 use crate::walk::{Step, Walk, Walker};
 
 /// The cardinality of a compound collection
@@ -39,16 +39,18 @@ impl<L> Annotation<L> for Cardinality {
     }
 }
 
-impl<C, A> Combine<C, A> for Cardinality
+impl<A> Combine<A> for Cardinality
 where
-    C: Compound<A>,
-    A: Annotation<C::Leaf> + Borrow<Self>,
+    A: Borrow<Self>,
 {
-    fn combine(node: &C) -> Self {
+    fn combine<C>(iter: AnnoIter<C, A>) -> Self
+    where
+        C: Compound<A>,
+        A: Annotation<C::Leaf>,
+    {
         let mut sum = 0;
-        for child in node.children() {
-            let ann = &*child.annotation();
-            let card = ann.borrow();
+        for ann in iter {
+            let card = (*ann).borrow();
             sum += card.0
         }
         Cardinality(sum)
@@ -61,7 +63,7 @@ pub struct Offset(u64);
 impl<C, A> Walker<C, A> for Offset
 where
     C: Compound<A>,
-    A: Borrow<Cardinality>,
+    A: Annotation<C::Leaf> + Borrow<Cardinality>,
 {
     fn walk(&mut self, walk: Walk<C, A>) -> Step {
         for i in 0.. {
@@ -95,7 +97,7 @@ where
 pub trait Nth<'a, A>
 where
     Self: Compound<A>,
-    A: Borrow<Cardinality>,
+    A: Annotation<Self::Leaf> + Borrow<Cardinality>,
 {
     /// Construct a `Branch` pointing to the `nth` element, if any
     fn nth(&'a self, n: u64)
