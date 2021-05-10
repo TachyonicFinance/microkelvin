@@ -61,7 +61,7 @@ pub struct Offset(u64);
 impl<C, A> Walker<C, A> for Offset
 where
     C: Compound<A>,
-    A: Combine<C, A> + Borrow<Cardinality>,
+    A: Borrow<Cardinality>,
 {
     fn walk(&mut self, walk: Walk<C, A>) -> Step {
         for i in 0.. {
@@ -74,7 +74,7 @@ where
                     }
                 }
                 Child::Node(node) => {
-                    let card: u64 = node.annotation().borrow().into();
+                    let card: u64 = (*node.annotation()).borrow().into();
 
                     if card <= self.0 {
                         self.0 -= card;
@@ -95,7 +95,7 @@ where
 pub trait Nth<'a, A>
 where
     Self: Compound<A>,
-    A: Combine<Self, A> + Borrow<Cardinality>,
+    A: Borrow<Cardinality>,
 {
     /// Construct a `Branch` pointing to the `nth` element, if any
     fn nth(&'a self, n: u64)
@@ -113,7 +113,7 @@ where
 impl<'a, C, A> Nth<'a, A> for C
 where
     C: Compound<A> + Clone,
-    A: Combine<C, A> + Borrow<Cardinality>,
+    A: Annotation<C::Leaf> + Borrow<Cardinality>,
 {
     fn nth(
         &'a self,
@@ -128,7 +128,6 @@ where
         ofs: u64,
     ) -> Result<Option<BranchMut<'a, Self, A>>, CanonError>
     where
-        A: Combine<Self, A>,
         C: MutableLeaves,
     {
         // Return the first mutable branch that satisfies the walk

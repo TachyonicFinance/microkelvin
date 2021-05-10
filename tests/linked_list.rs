@@ -6,15 +6,12 @@
 
 use canonical::Canon;
 use canonical_derive::Canon;
-use microkelvin::{
-    Annotation, Child, ChildMut, Combine, Compound, First, MerkleLink,
-    MutableLeaves,
-};
+use microkelvin::{Child, ChildMut, Compound, First, Link, MutableLeaves};
 
 #[derive(Clone, Canon, Debug)]
 pub enum LinkedList<T, A> {
     Empty,
-    Node { val: T, next: MerkleLink<Self, A> },
+    Node { val: T, next: Link<Self, A> },
 }
 
 impl<T, A> Default for LinkedList<T, A> {
@@ -30,10 +27,7 @@ where
 {
     type Leaf = T;
 
-    fn child(&self, ofs: usize) -> Child<Self, A>
-    where
-        A: Annotation<Self::Leaf>,
-    {
+    fn child(&self, ofs: usize) -> Child<Self, A> {
         match (self, ofs) {
             (LinkedList::Node { val, .. }, 0) => Child::Leaf(val),
             (LinkedList::Node { next, .. }, 1) => Child::Node(next),
@@ -42,10 +36,7 @@ where
         }
     }
 
-    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, A>
-    where
-        A: Annotation<Self::Leaf>,
-    {
+    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, A> {
         match (self, ofs) {
             (LinkedList::Node { val, .. }, 0) => ChildMut::Leaf(val),
             (LinkedList::Node { next, .. }, 1) => ChildMut::Node(next),
@@ -60,7 +51,6 @@ impl<T, A> MutableLeaves for LinkedList<T, A> {}
 impl<T, A> LinkedList<T, A>
 where
     Self: Compound<A>,
-    A: Combine<Self, A>,
 {
     pub fn new() -> Self {
         Default::default()
@@ -71,13 +61,13 @@ where
             LinkedList::Empty => {
                 *self = LinkedList::Node {
                     val: t,
-                    next: MerkleLink::new(LinkedList::Empty),
+                    next: Link::new(LinkedList::Empty),
                 }
             }
             old @ LinkedList::Node { .. } => {
                 *self = LinkedList::Node {
                     val: t,
-                    next: MerkleLink::new(old),
+                    next: Link::new(old),
                 };
             }
         }

@@ -2,9 +2,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Seek, SeekFrom};
 use std::path::PathBuf;
 
-use crate::{Child, Combine, Compound, Link};
+use crate::{Annotation, Child, Combine, Compound, Link};
 use appendix::Index;
-use canonical::{Canon, CanonError, Id, Sink};
+use canonical::{Canon, CanonError, Id, Sink, Source};
 use canonical_derive::Canon;
 
 // none [ ]
@@ -61,9 +61,10 @@ impl Persisted {
                     let annotation = A::decode(source)?;
                     debug_assert!(annotation.encoded_len() == annotation_len);
 
-                    let link = Link::from_persisted(persisted, annotation);
+                    let link =
+                        Link::<C, A>::from_persisted(persisted, annotation);
 
-                    compound.push_link(i, leaf) = Child::Leaf(leaf);
+                    compound.push_link(i, link) = link;
                     todo!()
                 }
             }

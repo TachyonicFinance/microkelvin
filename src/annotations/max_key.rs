@@ -92,7 +92,7 @@ impl<C, A, K> Combine<C, A> for MaxKey<K>
 where
     C: Compound<A>,
     C::Leaf: Keyed<K>,
-    A: Annotation<C::Leaf> + Borrow<Self>,
+    A: Combine<C, A> + Borrow<Self>,
     K: Ord + Clone,
 {
     fn combine(node: &C) -> Self {
@@ -123,7 +123,7 @@ impl<C, A, K> Walker<C, A> for FindMaxKey<K>
 where
     C: Compound<A>,
     C::Leaf: Keyed<K>,
-    A: Combine<C, A> + Borrow<MaxKey<K>>,
+    A: Borrow<MaxKey<K>>,
     K: Ord + Clone + core::fmt::Debug,
 {
     fn walk(&mut self, walk: Walk<C, A>) -> Step {
@@ -141,9 +141,10 @@ where
                     }
                 }
                 Child::Node(n) => {
-                    let node_max = n.annotation().borrow().clone();
-                    if node_max > current_max {
-                        current_max = node_max;
+                    let ann = n.annotation();
+                    let node_max: &MaxKey<K> = (*ann).borrow();
+                    if node_max > &current_max {
+                        current_max = node_max.clone();
                         current_step = Step::Into(i);
                     }
                 }
@@ -161,7 +162,7 @@ pub trait GetMaxKey<'a, A, K>
 where
     Self: Compound<A>,
     Self::Leaf: Keyed<K>,
-    A: Combine<Self, A> + Borrow<MaxKey<K>> + Clone,
+    A: Borrow<MaxKey<K>> + Clone,
     K: Ord,
 {
     /// Construct a `Branch` pointing to the element with the largest key
@@ -180,7 +181,7 @@ impl<'a, C, A, K> GetMaxKey<'a, A, K> for C
 where
     C: Compound<A> + Clone,
     C::Leaf: Keyed<K>,
-    A: Combine<C, A> + Borrow<MaxKey<K>>,
+    A: Annotation<C::Leaf> + Borrow<MaxKey<K>> + Clone,
     K: Ord + Clone + core::fmt::Debug,
 {
     fn max_key(&'a self) -> Result<Option<Branch<'a, Self, A>>, CanonError> {

@@ -10,14 +10,15 @@ use alloc::vec::Vec;
 
 use canonical::CanonError;
 
-use crate::annotations::{AnnRef, Combine};
+use crate::annotations::{Annotation, Combine};
 use crate::compound::{Child, Compound};
+use crate::link::LinkCompound;
 use crate::walk::{AllLeaves, Step, Walk, Walker};
 
 #[derive(Debug)]
 enum LevelNode<'a, C, A> {
     Root(&'a C),
-    Val(AnnRef<'a, C, A>),
+    Val(LinkCompound<'a, C, A>),
 }
 
 #[derive(Debug)]
@@ -29,7 +30,6 @@ pub struct Level<'a, C, A> {
 impl<'a, C, A> Deref for Level<'a, C, A>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
 {
     type Target = C;
 
@@ -46,10 +46,10 @@ impl<'a, C, A> Level<'a, C, A> {
         }
     }
 
-    pub fn new_val(ann: AnnRef<'a, C, A>) -> Level<'a, C, A> {
+    pub fn new_val(link_compound: LinkCompound<'a, C, A>) -> Level<'a, C, A> {
         Level {
             offset: 0,
-            node: LevelNode::Val(ann),
+            node: LevelNode::Val(link_compound),
         }
     }
 
@@ -69,7 +69,6 @@ pub struct PartialBranch<'a, C, A>(Vec<Level<'a, C, A>>);
 impl<'a, C, A> Deref for LevelNode<'a, C, A>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
 {
     type Target = C;
 
@@ -84,7 +83,6 @@ where
 impl<'a, C, A> PartialBranch<'a, C, A>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
 {
     fn new(root: &'a C) -> Self {
         PartialBranch(vec![Level::new_root(root)])
@@ -98,11 +96,14 @@ where
         &self.0
     }
 
-    fn leaf(&self) -> Option<&C::Leaf> {
+    fn leaf(&self) -> Option<&C::Leaf>
+    where
+        A: Annotation<C::Leaf>,
+    {
         let top = self.top();
         let ofs = top.offset();
 
-        match top.child(ofs) {
+        match (**top).child(ofs) {
             Child::Leaf(l) => Some(l),
             _ => None,
         }
@@ -132,6 +133,7 @@ where
     fn walk<W>(&mut self, walker: &mut W) -> Result<Option<()>, CanonError>
     where
         W: Walker<C, A>,
+        A: Annotation<C::Leaf>,
     {
         enum State<'a, C, A> {
             Init,
@@ -165,7 +167,8 @@ where
                     let ofs = top.offset();
                     let top_child = top.child(ofs);
                     if let Child::Node(n) = top_child {
-                        let level: Level<'_, C, A> = Level::new_val(n.val()?);
+                        let level: Level<'_, C, A> =
+                            Level::new_val(n.compound()?);
                         // Extend the lifetime of the Level.
                         //
                         // JUSTIFICATION
@@ -222,6 +225,7 @@ where
     fn path<P>(&mut self, mut path: P) -> Result<Option<()>, CanonError>
     where
         P: FnMut() -> usize,
+        A: Annotation<C::Leaf>,
     {
         let mut push = None;
         loop {
@@ -238,7 +242,7 @@ where
                     return Ok(Some(()));
                 }
                 Child::Node(n) => {
-                    let level: Level<'_, C, A> = Level::new_val(n.val()?);
+                    let level: Level<'_, C, A> = Level::new_val(n.compound()?);
                     // Extend the lifetime of the Level.
                     // See comment in `Branch::walk` for justification.
                     let extended: Level<'a, C, A> =
@@ -259,7 +263,7 @@ where
 impl<'a, C, A> Branch<'a, C, A>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
+    A: Annotation<C::Leaf>,
 {
     /// Returns the depth of the branch
     pub fn depth(&self) -> usize {
@@ -300,6 +304,7 @@ where
     pub fn path<P>(root: &'a C, path: P) -> Result<Option<Self>, CanonError>
     where
         P: FnMut() -> usize,
+        A: Annotation<C::Leaf>,
     {
         let mut partial = PartialBranch::new(root);
         Ok(partial.path(path)?.map(|()| Branch(partial)))
@@ -316,7 +321,7 @@ pub struct Branch<'a, C, A>(PartialBranch<'a, C, A>);
 impl<'a, C, A> Deref for Branch<'a, C, A>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
+    A: Annotation<C::Leaf>,
 {
     type Target = C::Leaf;
 
@@ -328,7 +333,7 @@ where
 pub struct MappedBranch<'a, C, A, M>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
+    A: Annotation<C::Leaf>,
 {
     inner: Branch<'a, C, A>,
     closure: for<'b> fn(&'b C::Leaf) -> &'b M,
@@ -338,7 +343,7 @@ impl<'a, C, A, M> Deref for MappedBranch<'a, C, A, M>
 where
     C: Compound<A>,
     C::Leaf: 'a,
-    A: Combine<C, A>,
+    A: Annotation<C::Leaf>,
 {
     type Target = M;
 

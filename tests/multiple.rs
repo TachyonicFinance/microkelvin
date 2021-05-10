@@ -51,7 +51,7 @@ impl<C, A, K> Combine<C, A> for Anno<K>
 where
     C: Compound<A>,
     C::Leaf: Keyed<K>,
-    A: Annotation<C::Leaf> + Borrow<MaxKey<K>> + Borrow<Cardinality>,
+    A: Combine<C, A> + Borrow<MaxKey<K>> + Borrow<Cardinality>,
     K: Clone + Ord + Default,
 {
     fn combine(node: &C) -> Self {

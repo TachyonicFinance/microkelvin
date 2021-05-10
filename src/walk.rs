@@ -37,7 +37,6 @@ pub struct Walk<'a, C, A> {
 impl<'a, C, A> Walk<'a, C, A>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
 {
     pub(crate) fn new(compound: &'a C, ofs: usize) -> Self {
         Walk {
@@ -57,7 +56,6 @@ where
 pub trait Walker<C, A>
 where
     C: Compound<A>,
-    A: Combine<C, A>,
 {
     /// Walk the tree node, returning the appropriate `Step`
     fn walk(&mut self, walk: Walk<C, A>) -> Step;
