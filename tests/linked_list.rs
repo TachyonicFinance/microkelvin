@@ -4,13 +4,11 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
-use canonical::Canon;
-use canonical_derive::Canon;
 use microkelvin::{
     Annotation, Child, ChildMut, Compound, First, Link, MutableLeaves,
 };
 
-#[derive(Clone, Canon, Debug)]
+#[derive(Clone, Debug)]
 pub enum LinkedList<T, A>
 where
     A: Annotation<T>,

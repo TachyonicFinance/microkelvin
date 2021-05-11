@@ -3,32 +3,10 @@ use std::io::{self, Seek, SeekFrom};
 use std::path::PathBuf;
 
 use appendix::Index;
-use canonical::{Canon, CanonError, Id, Sink};
+use canonical::{Canon, CanonError, Id};
 
 use crate::generic::GenericTree;
-use crate::{Annotation, Child, Compound, Link};
-
-// none [ ]
-const TAG_EMPTY: u8 = 0;
-// leaf [len: u16]
-const TAG_LEAF: u8 = 1;
-// dep [Id, annotation_len: u16]
-const TAG_LINK: u8 = 2;
-const TAG_END: u8 = 3;
-
-trait ByteVecExt {
-    fn push_canon<C: Canon>(&mut self, c: &C);
-}
-
-impl ByteVecExt for Vec<u8> {
-    fn push_canon<C: Canon>(&mut self, c: &C) {
-        let len = c.encoded_len();
-        let ofs = self.len();
-        self.resize_with(ofs + len, || 0);
-        let mut sink = Sink::new(&mut self[ofs..ofs + len]);
-        c.encode(&mut sink);
-    }
-}
+use crate::{Annotation, Compound};
 
 /// A disk-store for persisting microkelvin compound structures
 pub struct PStore {
@@ -44,6 +22,7 @@ pub struct Encoder<'p> {
     bytes: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub enum PersistError {
     Io(io::Error),
     Canon(CanonError),
@@ -101,75 +80,12 @@ impl PStore {
         C::Leaf: Canon,
         A: Annotation<C::Leaf> + Canon,
     {
-        let mut encoder = Encoder::new(self);
-
-        for i in 0.. {
-            match c.child(i) {
-                Child::Leaf(l) => encoder.leaf::<C, A>(l),
-                Child::Node(n) => encoder.link(n)?,
-                Child::Empty => encoder.empty(),
-                Child::EndOfNode => {
-                    return Ok(encoder.end());
-                }
-            };
-        }
+        let generic = GenericTree::new(c);
+        let _id = Id::new(&generic);
         todo!()
     }
 
-    fn restore<C, A>(&self, id: Id) -> Result<GenericTree, PersistError> {
-        let tree: GenericTree = id.reify()?;
-
-        todo!()
-    }
-}
-
-impl<'p> Encoder<'p> {
-    fn new(store: &'p mut PStore) -> Self {
-        Encoder {
-            store,
-            bytes: vec![],
-        }
-    }
-
-    pub fn end(&mut self) -> Id {
-        self.bytes.push(TAG_END);
-        Id::new(&self.bytes)
-    }
-
-    fn leaf<C, A>(&mut self, leaf: &C::Leaf)
-    where
-        C: Compound<A>,
-        C::Leaf: Canon,
-    {
-        self.bytes.push(TAG_LEAF);
-        let leaf_len = leaf.encoded_len();
-        assert!(leaf_len <= core::u16::MAX as usize);
-        self.bytes.push_canon(&(leaf_len as u16));
-        self.bytes.push_canon(leaf);
-    }
-
-    fn empty(&mut self) {
-        self.bytes.push(TAG_EMPTY);
-    }
-
-    fn link<C, A>(&mut self, dep: &Link<C, A>) -> Result<(), PersistError>
-    where
-        C: Compound<A>,
-        C::Leaf: Canon,
-        A: Annotation<C::Leaf> + Canon,
-    {
-        let node = &*dep.compound()?;
-        let anno = dep.annotation();
-
-        let persisted = self.store.persist(node)?;
-
-        self.bytes.push(TAG_LINK);
-        self.bytes.push_canon(&persisted);
-
-        let len = anno.encoded_len();
-        assert!(len <= core::u16::MAX as usize);
-        self.bytes.push_canon(&(len as u16));
-        self.bytes.push_canon(&*anno);
-        Ok(())
+    pub fn restore(&self, id: Id) -> Result<GenericTree, PersistError> {
+        id.reify().map_err(Into::into)
     }
 }

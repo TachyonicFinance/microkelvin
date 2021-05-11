@@ -3,7 +3,7 @@ use core::cell::{RefCell, RefMut};
 use core::mem;
 use core::ops::{Deref, DerefMut};
 
-use canonical::{Canon, CanonError, Id};
+use canonical::{CanonError, Id};
 
 use crate::{Annotation, Compound};
 
@@ -24,54 +24,38 @@ impl<C, A> Default for LinkInner<C, A> {
     }
 }
 
-impl<C, A> Canon for Link<C, A>
-where
-    C: Compound<A> + Canon,
-    A: Annotation<C::Leaf> + Canon,
-{
-    fn encode(&self, sink: &mut canonical::Sink) {
-        self.id().encode(sink);
-        self.annotation().encode(sink);
-    }
-
-    fn decode(source: &mut canonical::Source) -> Result<Self, CanonError> {
-        let id = Id::decode(source)?;
-        let a = A::decode(source)?;
-        Ok(LinkInner::Ia(id, a).into())
-    }
-
-    fn encoded_len(&self) -> usize {
-        self.id().encoded_len() + self.annotation().encoded_len()
-    }
+#[derive(Clone)]
+/// TODO
+pub struct Link<C, A> {
+    inner: RefCell<LinkInner<C, A>>,
 }
 
-#[derive(Debug, Clone)]
-/// A wrapper type that keeps the annotation of the Compound referenced cached
-pub struct Link<C, A>(RefCell<LinkInner<C, A>>);
-
-impl<C, A> From<LinkInner<C, A>> for Link<C, A> {
-    fn from(inner: LinkInner<C, A>) -> Self {
-        Link(RefCell::new(inner))
+impl<C: core::fmt::Debug, A: core::fmt::Debug> core::fmt::Debug for Link<C, A> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "{:?}", self.inner)
     }
 }
 
 impl<C, A> Link<C, A>
 where
     C: Compound<A>,
-    A: Annotation<C::Leaf>,
 {
     /// Create a new annotated type
-    pub fn new(compound: C) -> Self {
-        LinkInner::C(Rc::new(compound)).into()
-    }
-
-    fn from_persisted(id: Id, anno: A) -> Self {
-        LinkInner::Ia(id, anno).into()
+    pub fn new(compound: C) -> Self
+    where
+        A: Annotation<C::Leaf>,
+    {
+        Link {
+            inner: RefCell::new(LinkInner::C(Rc::new(compound))),
+        }
     }
 
     /// Returns a reference to to the annotation stored
-    pub fn annotation(&self) -> LinkAnnotation<C, A> {
-        let mut borrow = self.0.borrow_mut();
+    pub fn annotation(&self) -> LinkAnnotation<C, A>
+    where
+        A: Annotation<C::Leaf>,
+    {
+        let mut borrow = self.inner.borrow_mut();
         let a = match *borrow {
             LinkInner::Ca(_, _)
             | LinkInner::Ica(_, _, _)
@@ -91,22 +75,13 @@ where
     ///
     /// Can fail when trying to fetch data over i/o
     pub fn compound(&self) -> Result<LinkCompound<C, A>, CanonError> {
-        let borrow: RefMut<LinkInner<C, A>> = self.0.borrow_mut();
+        let borrow: RefMut<LinkInner<C, A>> = self.inner.borrow_mut();
         match *borrow {
             LinkInner::Placeholder => unreachable!(),
             LinkInner::C(_) | LinkInner::Ca(_, _) | LinkInner::Ica(_, _, _) => {
                 return Ok(LinkCompound(borrow))
             }
             LinkInner::Ia(_, _) => todo!(),
-        }
-    }
-
-    fn id(&self) -> Id {
-        let borrow: RefMut<LinkInner<C, A>> = self.0.borrow_mut();
-        match *borrow {
-            LinkInner::Placeholder => unreachable!(),
-            LinkInner::Ica(id, _, _) | LinkInner::Ia(id, _) => return id,
-            _ => todo!(),
         }
     }
 
@@ -118,7 +93,7 @@ where
     pub fn compound_mut(
         &mut self,
     ) -> Result<LinkCompoundMut<C, A>, CanonError> {
-        let mut borrow: RefMut<LinkInner<C, A>> = self.0.borrow_mut();
+        let mut borrow: RefMut<LinkInner<C, A>> = self.inner.borrow_mut();
 
         match mem::take(&mut *borrow) {
             LinkInner::Placeholder => unreachable!(),

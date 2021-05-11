@@ -13,7 +13,7 @@ mod persist_tests {
     use linked_list::LinkedList;
 
     use canonical_derive::Canon;
-    use microkelvin::{Keyed, PStore};
+    use microkelvin::{First, Keyed, PStore};
 
     #[derive(PartialEq, Clone, Canon, Debug)]
     struct TestLeaf {
@@ -40,9 +40,9 @@ mod persist_tests {
             list.insert(i);
         }
 
-        let persisted = store.persist(&list);
+        let persisted = store.persist(&list).unwrap();
 
-        let restored = store.restore(persisted);
+        let restored = store.restore(persisted).unwrap();
 
         let branch = restored.first().unwrap().unwrap();
     }

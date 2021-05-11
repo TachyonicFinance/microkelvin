@@ -8,7 +8,6 @@ use core::marker::PhantomData;
 
 use canonical::CanonError;
 
-use crate::annotations::Annotation;
 use crate::branch::Branch;
 use crate::branch_mut::BranchMut;
 use crate::compound::{Child, Compound, MutableLeaves};
@@ -37,7 +36,6 @@ pub struct Walk<'a, C, A> {
 impl<'a, C, A> Walk<'a, C, A>
 where
     C: Compound<A>,
-    A: Annotation<C::Leaf>,
 {
     pub(crate) fn new(compound: &'a C, ofs: usize) -> Self {
         Walk {
@@ -68,7 +66,6 @@ pub struct AllLeaves;
 impl<C, A> Walker<C, A> for AllLeaves
 where
     C: Compound<A>,
-    A: Annotation<C::Leaf>,
 {
     fn walk(&mut self, walk: Walk<C, A>) -> Step {
         for i in 0.. {
@@ -103,7 +100,6 @@ where
 impl<'a, C, A> First<'a, A> for C
 where
     C: Compound<A>,
-    A: Annotation<C::Leaf>,
 {
     fn first(&'a self) -> Result<Option<Branch<'a, Self, A>>, CanonError> {
         Branch::<_, A>::walk(self, AllLeaves)
