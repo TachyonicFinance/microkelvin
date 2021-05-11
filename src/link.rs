@@ -7,9 +7,6 @@ use canonical::{Canon, CanonError, Id};
 
 use crate::{Annotation, Compound};
 
-#[cfg(feature = "persistance")]
-use crate::Persisted;
-
 #[derive(Debug, Clone)]
 enum LinkInner<C, A> {
     Placeholder,
@@ -66,6 +63,10 @@ where
     /// Create a new annotated type
     pub fn new(compound: C) -> Self {
         LinkInner::C(Rc::new(compound)).into()
+    }
+
+    fn from_persisted(id: Id, anno: A) -> Self {
+        LinkInner::Ia(id, anno).into()
     }
 
     /// Returns a reference to to the annotation stored

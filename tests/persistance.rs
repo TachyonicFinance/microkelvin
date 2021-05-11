@@ -43,5 +43,7 @@ mod persist_tests {
         let persisted = store.persist(&list);
 
         let restored = store.restore(persisted);
+
+        let branch = restored.first().unwrap().unwrap();
     }
 }

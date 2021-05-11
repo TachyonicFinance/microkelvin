@@ -13,7 +13,6 @@ use crate::link::Link;
 pub enum Child<'a, C, A>
 where
     C: Compound<A>,
-    A: Annotation<C::Leaf>,
 {
     /// Child is a leaf
     Leaf(&'a C::Leaf),
@@ -29,7 +28,6 @@ where
 pub enum ChildMut<'a, C, A>
 where
     C: Compound<A>,
-    A: Annotation<C::Leaf>,
 {
     /// Child is a leaf
     Leaf(&'a mut C::Leaf),
@@ -47,14 +45,10 @@ pub trait Compound<A>: Sized {
     type Leaf;
 
     /// Returns a reference to a possible child at specified offset
-    fn child(&self, ofs: usize) -> Child<Self, A>
-    where
-        A: Annotation<Self::Leaf>;
+    fn child(&self, ofs: usize) -> Child<Self, A>;
 
     /// Returns a mutable reference to a possible child at specified offset
-    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, A>
-    where
-        A: Annotation<Self::Leaf>;
+    fn child_mut(&mut self, ofs: usize) -> ChildMut<Self, A>;
 
     /// Provides an iterator over all sub-annotations of the compound node
     fn annotations(&self) -> AnnoIter<Self, A>

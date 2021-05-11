@@ -2,10 +2,11 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Seek, SeekFrom};
 use std::path::PathBuf;
 
-use crate::{Annotation, Child, Combine, Compound, Link};
 use appendix::Index;
-use canonical::{Canon, CanonError, Id, Sink, Source};
-use canonical_derive::Canon;
+use canonical::{Canon, CanonError, Id, Sink};
+
+use crate::generic::GenericTree;
+use crate::{Annotation, Child, Compound, Link};
 
 // none [ ]
 const TAG_EMPTY: u8 = 0;
@@ -13,6 +14,7 @@ const TAG_EMPTY: u8 = 0;
 const TAG_LEAF: u8 = 1;
 // dep [Id, annotation_len: u16]
 const TAG_LINK: u8 = 2;
+const TAG_END: u8 = 3;
 
 trait ByteVecExt {
     fn push_canon<C: Canon>(&mut self, c: &C);
@@ -25,50 +27,6 @@ impl ByteVecExt for Vec<u8> {
         self.resize_with(ofs + len, || 0);
         let mut sink = Sink::new(&mut self[ofs..ofs + len]);
         c.encode(&mut sink);
-    }
-}
-
-#[derive(Clone, Canon, Debug, Copy)]
-pub struct Persisted(Id);
-
-impl Persisted {
-    fn restore<C, A>(self) -> Result<C, PersistError>
-    where
-        C: Compound<A> + Default,
-        A: Annotation<C::Leaf> + Canon,
-    {
-        let vec: Vec<u8> = self.0.reify()?;
-
-        let source = Source::new(&vec[..]);
-
-        let mut compound = C::default();
-
-        for i in 0.. {
-            let tag = u8::decode(&mut source)?;
-
-            match tag {
-                TAG_END => return Ok(compound),
-                TAG_EMPTY => *compound.push_empty(i)?,
-                TAG_LEAF => {
-                    let leaf_len = u16::decode(&mut source)?;
-                    let leaf = C::Leaf::decode(&mut source)?;
-                    debug_assert!(leaf.encoded_len() == leaf_len);
-                    compound.push_leaf(i, leaf) = Child::Leaf(leaf);
-                }
-                TAG_LINK => {
-                    let persisted = Persisted::decode(source)?;
-                    let annotation_len = u16::decode(source)?;
-                    let annotation = A::decode(source)?;
-                    debug_assert!(annotation.encoded_len() == annotation_len);
-
-                    let link =
-                        Link::<C, A>::from_persisted(persisted, annotation);
-
-                    compound.push_link(i, link) = link;
-                    todo!()
-                }
-            }
-        }
     }
 }
 
@@ -137,11 +95,11 @@ impl PStore {
     }
 
     /// Persist a compound tree to disk
-    pub fn persist<C, A>(&mut self, c: &C) -> Result<Persisted, PersistError>
+    pub fn persist<C, A>(&mut self, c: &C) -> Result<Id, PersistError>
     where
         C: Compound<A>,
         C::Leaf: Canon,
-        A: Combine<C, A> + Canon,
+        A: Annotation<C::Leaf> + Canon,
     {
         let mut encoder = Encoder::new(self);
 
@@ -157,6 +115,12 @@ impl PStore {
         }
         todo!()
     }
+
+    fn restore<C, A>(&self, id: Id) -> Result<GenericTree, PersistError> {
+        let tree: GenericTree = id.reify()?;
+
+        todo!()
+    }
 }
 
 impl<'p> Encoder<'p> {
@@ -167,8 +131,9 @@ impl<'p> Encoder<'p> {
         }
     }
 
-    pub fn end(&mut self) -> Persisted {
-        Persisted(Id::new(&self.bytes))
+    pub fn end(&mut self) -> Id {
+        self.bytes.push(TAG_END);
+        Id::new(&self.bytes)
     }
 
     fn leaf<C, A>(&mut self, leaf: &C::Leaf)
@@ -191,13 +156,11 @@ impl<'p> Encoder<'p> {
     where
         C: Compound<A>,
         C::Leaf: Canon,
-        A: Combine<C, A> + Canon,
+        A: Annotation<C::Leaf> + Canon,
     {
-        let node = &*dep.val()?;
+        let node = &*dep.compound()?;
         let anno = dep.annotation();
 
-	let sink = Sink::new()
-	
         let persisted = self.store.persist(node)?;
 
         self.bytes.push(TAG_LINK);
@@ -206,7 +169,7 @@ impl<'p> Encoder<'p> {
         let len = anno.encoded_len();
         assert!(len <= core::u16::MAX as usize);
         self.bytes.push_canon(&(len as u16));
-        self.bytes.push_canon(anno);
+        self.bytes.push_canon(&*anno);
         Ok(())
     }
 }
