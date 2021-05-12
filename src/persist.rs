@@ -67,18 +67,18 @@ impl PStore {
         })
     }
 
-    /// Persist a compound tree to disk
-    pub fn persist<C, A>(&mut self, c: &C) -> Result<Id, PersistError>
+    /// Persist a compound tree to disk as a generic tree
+    pub fn persist<C, A>(&mut self, c: &C) -> Id
     where
         C: Compound<A>,
         C::Leaf: Canon,
         A: Annotation<C::Leaf> + Canon,
     {
-        let generic = GenericTree::new(c);
-        let _id = Id::new(&generic);
+        let _generic = c.generic();
         todo!()
     }
 
+    /// Restore a generic tree from storage
     pub fn restore(&self, id: Id) -> Result<GenericTree, PersistError> {
         id.reify().map_err(Into::into)
     }

@@ -40,7 +40,7 @@ mod persist_tests {
             list.insert(i);
         }
 
-        let persisted = store.persist(&list).unwrap();
+        let persisted = store.persist(&list);
 
         let restored = store.restore(persisted).unwrap();
 

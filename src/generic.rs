@@ -4,7 +4,7 @@ use canonical::{Canon, EncodeToVec};
 use canonical_derive::Canon;
 
 use crate::link::Link;
-use crate::{Annotation, Child, ChildMut, Compound};
+use crate::{Child, ChildMut, Compound};
 
 #[derive(Clone, Canon, Debug)]
 pub struct GenericAnnotation(Vec<u8>);
@@ -35,30 +35,20 @@ pub enum GenericChild {
 pub struct GenericTree(Vec<GenericChild>);
 
 impl GenericTree {
-    pub fn new<C, A>(c: &C) -> Self
-    where
-        C: Compound<A>,
-        C::Leaf: Canon,
-        A: Annotation<C::Leaf> + Canon,
-    {
-        let mut generic = GenericTree::default();
-        for i in 0.. {
-            match c.child(i) {
-                Child::Empty => generic.push(GenericChild::Empty),
-                Child::Leaf(leaf) => {
-                    generic.push(GenericChild::Leaf(GenericLeaf::new(leaf)))
-                }
-                Child::Node(link) => {
-                    generic.push(GenericChild::Link(link.generic()))
-                }
-                Child::EndOfNode => break,
-            }
-        }
-        generic
+    pub(crate) fn new() -> Self {
+        GenericTree(vec![])
     }
 
-    pub fn push(&mut self, child: GenericChild) {
-        self.0.push(child)
+    pub(crate) fn push_empty(&mut self) {
+        self.0.push(GenericChild::Empty)
+    }
+
+    pub(crate) fn push_leaf<L>(&mut self, _leaf: &L) {
+        todo!()
+    }
+
+    pub(crate) fn push_link<C, A>(&mut self, _link: &Link<C, A>) {
+        todo!()
     }
 }
 

@@ -7,6 +7,7 @@
 use core::marker::PhantomData;
 
 use crate::annotations::{Annotation, WrappedAnnotation};
+use crate::generic::GenericTree;
 use crate::link::Link;
 
 /// The response of the `child` method on a `Compound` node.
@@ -60,6 +61,21 @@ pub trait Compound<A>: Sized {
             ofs: 0,
             _marker: PhantomData,
         }
+    }
+
+    fn generic(&self) -> GenericTree {
+        let mut generic = GenericTree::new();
+
+        for i in 0.. {
+            match self.child(i) {
+                Child::Empty => generic.push_empty(),
+                Child::Leaf(leaf) => generic.push_leaf(leaf),
+                Child::Node(link) => generic.push_link(link),
+                Child::EndOfNode => break,
+            }
+        }
+
+        generic
     }
 }
 
