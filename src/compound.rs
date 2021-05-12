@@ -4,6 +4,8 @@
 //
 // Copyright (c) DUSK NETWORK. All rights reserved.
 
+use canonical::{Canon, CanonError};
+
 use core::marker::PhantomData;
 
 use crate::annotations::{Annotation, WrappedAnnotation};
@@ -63,7 +65,11 @@ pub trait Compound<A>: Sized {
         }
     }
 
-    fn generic(&self) -> GenericTree {
+    fn generic(&self) -> GenericTree
+    where
+        Self::Leaf: Canon,
+        A: Annotation<Self::Leaf> + Canon,
+    {
         let mut generic = GenericTree::new();
 
         for i in 0.. {

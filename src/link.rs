@@ -3,7 +3,7 @@ use core::cell::{RefCell, RefMut};
 use core::mem;
 use core::ops::{Deref, DerefMut};
 
-use canonical::{CanonError, Id};
+use canonical::{Canon, CanonError, Id};
 
 use crate::{Annotation, Compound};
 
@@ -50,6 +50,23 @@ where
         }
     }
 
+    /// Create a new link
+    pub fn new_annotated(compound: C, annotation: A) -> Self
+    where
+        A: Annotation<C::Leaf>,
+    {
+        Link {
+            inner: RefCell::new(LinkInner::Ca(Rc::new(compound), annotation)),
+        }
+    }
+
+    /// Create a new link
+    pub fn new_persisted(id: Id, annotation: A) -> Self {
+        Link {
+            inner: RefCell::new(LinkInner::Ia(id, annotation)),
+        }
+    }
+
     /// Returns a reference to to the annotation stored
     pub fn annotation(&self) -> LinkAnnotation<C, A>
     where
@@ -82,6 +99,23 @@ where
                 return Ok(LinkCompound(borrow))
             }
             LinkInner::Ia(_, _) => todo!(),
+        }
+    }
+
+    /// Computes the Id of the
+    pub fn id(&self) -> Id
+    where
+        C::Leaf: Canon,
+        A: Annotation<C::Leaf> + Canon,
+    {
+        let borrow = self.inner.borrow();
+        match &*borrow {
+            LinkInner::Placeholder => unreachable!(),
+            LinkInner::C(c) | LinkInner::Ca(c, _) => {
+                let gen = c.generic();
+                Id::new(&gen)
+            }
+            LinkInner::Ia(id, _) | LinkInner::Ica(id, _, _) => *id,
         }
     }
 
