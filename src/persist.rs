@@ -16,12 +16,6 @@ pub struct PStore {
     data_ofs: u64,
 }
 
-/// The encoder for microkelvin structures
-pub struct Encoder<'p> {
-    store: &'p mut PStore,
-    bytes: Vec<u8>,
-}
-
 #[derive(Debug)]
 pub enum PersistError {
     Io(io::Error),

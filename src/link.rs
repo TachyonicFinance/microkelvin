@@ -3,9 +3,15 @@ use core::cell::{RefCell, RefMut};
 use core::mem;
 use core::ops::{Deref, DerefMut};
 
-use canonical::{CanonError, Id};
+use canonical::{Canon, CanonError, Id};
 
-use crate::{Annotation, Compound};
+use crate::{
+    generic::{GenericAnnotation, GenericTree},
+    Annotation, Compound,
+};
+
+#[cfg(feature = "persistance")]
+use crate::PersistError;
 
 #[derive(Debug, Clone)]
 enum LinkInner<C, A> {
@@ -48,6 +54,27 @@ where
         Link {
             inner: RefCell::new(LinkInner::C(Rc::new(compound))),
         }
+    }
+
+    #[cfg(feature = "persistance")]
+    /// Returns a generic version of this link
+    pub fn generic(&self) -> Link<GenericTree, GenericAnnotation>
+    where
+        C::Leaf: Canon,
+        A: Annotation<C::Leaf> + Canon,
+    {
+        let mut borrow = self.inner.borrow_mut();
+        let a = match *borrow {
+            LinkInner::C(ref c) => {}
+            LinkInner::Ca(_, a) => {}
+            LinkInner::Ica(_, _, a) => {}
+            LinkInner::Ia(_, a) => {}
+            LinkInner::Placeholder => unreachable!(),
+        };
+
+        Ok(Link {
+            inner: RefCell::new(inner),
+        })
     }
 
     /// Returns a reference to to the annotation stored

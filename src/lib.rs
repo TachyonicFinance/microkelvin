@@ -40,4 +40,4 @@ pub use walk::{First, Step, Walk, Walker};
 mod persist;
 
 #[cfg(feature = "persistance")]
-pub use persist::PStore;
+pub use persist::{PStore, PersistError};
