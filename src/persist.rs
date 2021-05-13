@@ -74,8 +74,8 @@ impl PStore {
         C::Leaf: Canon,
         A: Annotation<C::Leaf> + Canon,
     {
-        let _generic = c.generic();
-        todo!()
+        let generic = c.generic();
+        Id::new(&generic)
     }
 
     /// Restore a generic tree from storage

@@ -102,6 +102,26 @@ where
         }
     }
 
+    /// Gets a reference to the inner compound of the link'
+    ///
+    /// Can fail when trying to fetch data over i/o
+    pub fn into_compound(self) -> Result<C, CanonError>
+    where
+        C: Clone,
+    {
+        let inner = self.inner.into_inner();
+        match inner {
+            LinkInner::Placeholder => unreachable!(),
+            LinkInner::C(rc)
+            | LinkInner::Ca(rc, _)
+            | LinkInner::Ica(_, rc, _) => match Rc::try_unwrap(rc) {
+                Ok(c) => Ok(c),
+                Err(rc) => Ok((&*rc).clone()),
+            },
+            LinkInner::Ia(_, _) => todo!(),
+        }
+    }
+
     /// Computes the Id of the
     pub fn id(&self) -> Id
     where

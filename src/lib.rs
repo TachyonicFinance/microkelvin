@@ -33,6 +33,7 @@ pub use annotations::{
 pub use branch::Branch;
 pub use branch_mut::BranchMut;
 pub use compound::{AnnoIter, Child, ChildMut, Compound, MutableLeaves};
+pub use generic::{GenericAnnotation, GenericChild, GenericLeaf, GenericTree};
 pub use link::{Link, LinkAnnotation, LinkCompound, LinkCompoundMut};
 pub use walk::{First, Step, Walk, Walker};
 

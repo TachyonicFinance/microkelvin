@@ -65,6 +65,8 @@ pub trait Compound<A>: Sized {
         }
     }
 
+    /// Returns a generic version of this compound tree, erasing the specific
+    /// annotation and leaf types, to provide a universal tree encoding.
     fn generic(&self) -> GenericTree
     where
         Self::Leaf: Canon,
@@ -83,6 +85,12 @@ pub trait Compound<A>: Sized {
 
         generic
     }
+
+    /// Construct a specific compound tree from a generic tree
+    fn from_generic(tree: &GenericTree) -> Result<Self, CanonError>
+    where
+        Self::Leaf: Canon,
+        A: Canon;
 }
 
 /// An iterator over the sub-annotations of a Compound collection

@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use canonical::{Canon, CanonError, EncodeToVec, Id};
+use canonical::{Canon, CanonError, EncodeToVec, Id, Source};
 use canonical_derive::Canon;
 
 use crate::link::Link;
@@ -10,9 +10,11 @@ const TAG_EMPTY: u8 = 0;
 const TAG_LEAF: u8 = 1;
 const TAG_LINK: u8 = 2;
 
+/// A generic annotation
 #[derive(Clone, Canon, Debug)]
 pub struct GenericAnnotation(Vec<u8>);
 
+/// A generic leaf
 #[derive(Clone, Canon, Debug)]
 pub struct GenericLeaf(Vec<u8>);
 
@@ -20,18 +22,32 @@ impl GenericLeaf {
     pub(crate) fn new<C: Canon>(c: &C) -> Self {
         GenericLeaf(c.encode_to_vec())
     }
+
+    /// Cast the generic leaf to a concrete type
+    pub fn cast<T: Canon>(&self) -> Result<T, CanonError> {
+        T::decode(&mut Source::new(&self.0))
+    }
 }
 
 impl GenericAnnotation {
     pub(crate) fn new<A: Canon>(a: &A) -> Self {
         GenericAnnotation(a.encode_to_vec())
     }
+
+    /// Cast the generic leaf to a concrete type
+    pub fn cast<A: Canon>(&self) -> Result<A, CanonError> {
+        A::decode(&mut Source::new(&self.0))
+    }
 }
 
+/// A generic child of a collection
 #[derive(Clone, Debug)]
 pub enum GenericChild {
+    /// Child is empty
     Empty,
+    /// Child is a leaf    
     Leaf(GenericLeaf),
+    /// Child is a link        
     Link(Id, GenericAnnotation),
 }
 
@@ -41,9 +57,6 @@ impl Canon for GenericChild {
             Self::Empty => TAG_EMPTY.encode(sink),
             Self::Leaf(leaf) => {
                 TAG_LEAF.encode(sink);
-                let leaf_len = leaf.encoded_len();
-                assert!(leaf_len < u16::MAX as usize);
-                (leaf_len as u16).encode(sink);
                 leaf.encode(sink)
             }
             Self::Link(id, annotation) => {
@@ -55,7 +68,16 @@ impl Canon for GenericChild {
     }
 
     fn decode(source: &mut canonical::Source) -> Result<Self, CanonError> {
-        todo!()
+        match u8::decode(source)? {
+            TAG_EMPTY => Ok(GenericChild::Empty),
+            TAG_LEAF => Ok(GenericChild::Leaf(GenericLeaf::decode(source)?)),
+            TAG_LINK => {
+                let id = Id::decode(source)?;
+                let anno = GenericAnnotation::decode(source)?;
+                Ok(GenericChild::Link(id, anno))
+            }
+            _ => Err(CanonError::InvalidEncoding),
+        }
     }
 
     fn encoded_len(&self) -> usize {
@@ -99,20 +121,8 @@ impl GenericTree {
         let anno = GenericAnnotation::new(&*link.annotation());
         self.0.push(GenericChild::Link(id, anno));
     }
+
+    pub fn children(&self) -> &[GenericChild] {
+        &self.0
+    }
 }
-
-// impl Canon for Link<GenericTree, GenericAnnotation> {
-//     fn encode(&self, _sink: &mut canonical::Sink) {
-//         todo!()
-//     }
-
-//     fn decode(
-//         _source: &mut canonical::Source,
-//     ) -> Result<Self, canonical::CanonError> {
-//         todo!()
-//     }
-
-//     fn encoded_len(&self) -> usize {
-//         self.id().encoded_len() + self.annotation().encoded_len()
-//     }
-// }
