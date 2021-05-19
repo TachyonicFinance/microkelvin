@@ -147,6 +147,7 @@ impl Persistance {
                 return Ok(tree);
             }
         }
+        println!("error in get");
         Err(CanonError::NotFound.into())
     }
 }

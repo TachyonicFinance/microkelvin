@@ -5,7 +5,8 @@ use core::ops::{Deref, DerefMut};
 
 use canonical::{Canon, CanonError, Id};
 
-// when not using persistance, the PStore is just a unit struct.
+#[cfg(feature = "persistance")]
+use crate::persist::{PersistError, Persistance};
 
 use crate::{Annotation, Compound};
 
@@ -112,6 +113,7 @@ where
         C::Leaf: Canon,
         A: Canon,
     {
+        println!("into_compound");
         let inner = self.inner.into_inner();
         match inner {
             LinkInner::Placeholder => unreachable!(),
@@ -121,7 +123,19 @@ where
                 Ok(c) => Ok(c),
                 Err(rc) => Ok((&*rc).clone()),
             },
-            LinkInner::Ia(id, _) => C::from_generic(&id.reify()?),
+            LinkInner::Ia(id, _) => match id.reify() {
+                Ok(generic) => C::from_generic(&generic),
+                #[cfg(feature = "persistance")]
+                Err(CanonError::NotFound) => match Persistance::get(&id) {
+                    Ok(generic) => C::from_generic(&generic),
+                    Err(PersistError::Canon(e)) => Err(e),
+                    Err(PersistError::Io(_)) => {
+                        // FIXME, report the error through other channels
+                        Err(CanonError::NotFound)
+                    }
+                },
+                Err(e) => return Err(e),
+            },
         }
     }
 
